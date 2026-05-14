@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.wav
+*.mp3
+*.m4a
+uploaded_*
+meeting_summary.wav
+.env

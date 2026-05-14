@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meeting Summarizer</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --border: #2a2a2a;
+    --border2: #333333;
+    --text: #f0f0f0;
+    --muted: #888888;
+    --accent: #00e5a0;
+    --accent2: #00b87a;
+    --danger: #ff4455;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font-display);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem 4rem;
+  }
+
+  .noise {
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 640px;
+    position: relative;
+    z-index: 1;
+  }
+
+  header {
+    margin-bottom: 3rem;
+    padding-top: 1rem;
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 0.5rem;
+  }
+
+  .logo-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 16px var(--accent);
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text);
+  }
+
+  .tagline {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    margin-left: 22px;
+  }
+
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Record button */
+  .record-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0.5rem 0 1rem;
+  }
+
+  .record-ring {
+    position: relative;
+    width: 100px;
+    height: 100px;
+  }
+
+  .record-ring svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .record-ring circle {
+    fill: none;
+    stroke: var(--border2);
+    stroke-width: 2;
+    cx: 50; cy: 50; r: 46;
+  }
+
+  .record-ring circle.progress {
+    stroke: var(--accent);
+    stroke-dasharray: 289;
+    stroke-dashoffset: 289;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear;
+  }
+
+  .record-btn {
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    outline: none;
+  }
+
+  .record-btn:hover { border-color: var(--accent); background: #1a2a22; }
+  .record-btn.recording { background: #1a0a0a; border-color: var(--danger); }
+  .record-btn.recording:hover { background: #220a0a; }
+
+  .mic-icon { width: 32px; height: 32px; transition: color 0.2s; animation: none !important; transform: none !important; }
+  .mic-icon path, .mic-icon rect, .mic-icon line { stroke: var(--text); stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; animation: none !important; transform: none !important; }
+  .record-btn.recording .mic-icon path,
+  .record-btn.recording .mic-icon rect,
+  .record-btn.recording .mic-icon line { stroke: var(--danger); }
+  .stop-icon { display: none; width: 32px; height: 32px; }
+  .stop-icon rect { fill: var(--danger); rx: 3; }
+  .record-btn.recording .mic-icon { display: none; }
+  .record-btn.recording .stop-icon { display: block; }
+
+  .record-meta { text-align: center; }
+  .record-status { font-size: 14px; color: var(--muted); font-family: var(--font-mono); }
+  .record-status.live { color: var(--danger); }
+  .record-timer { font-family: var(--font-mono); font-size: 22px; font-weight: 500; color: var(--text); margin-top: 4px; display: none; }
+  .record-timer.visible { display: block; }
+
+  /* Waveform */
+  .waveform {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: 32px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .waveform.active { opacity: 1; }
+  .wave-bar {
+    width: 3px;
+    border-radius: 2px;
+    background: var(--accent);
+    animation: wave 0.8s ease-in-out infinite;
+  }
+  .wave-bar:nth-child(1) { animation-delay: 0s; }
+  .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+  .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+  .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+  .wave-bar:nth-child(5) { animation-delay: 0.2s; }
+  .wave-bar:nth-child(6) { animation-delay: 0.1s; }
+  .wave-bar:nth-child(7) { animation-delay: 0s; }
+  @keyframes wave {
+    0%, 100% { height: 6px; }
+    50% { height: 24px; }
+  }
+
+  /* OR divider */
+  .or-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 1rem 0;
+  }
+  .or-divider span {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .or-divider::before, .or-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* File upload */
+  .upload-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .upload-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .upload-label:hover { border-color: var(--accent); color: var(--accent); }
+  .upload-label svg { width: 14px; height: 14px; }
+  .upload-label svg path { stroke: currentColor; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  #fileInput { display: none; }
+  .file-name {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .file-name.chosen { color: var(--accent); }
+
+  /* TTS toggle */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+  }
+  .toggle-info h3 { font-size: 14px; font-weight: 500; color: var(--text); }
+  .toggle-info p { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--border2);
+    border-radius: 24px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle-track::before {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    left: 3px; top: 3px;
+    background: var(--muted);
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+  input:checked + .toggle-track { background: var(--accent2); }
+  input:checked + .toggle-track::before { transform: translateX(20px); background: white; }
+
+  /* Submit */
+  .submit-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid var(--accent2);
+    background: transparent;
+    color: var(--accent);
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 0.25rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .submit-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .submit-btn:hover:not(:disabled)::before { opacity: 0.08; }
+  .submit-btn:disabled { opacity: 0.35; cursor: not-allowed; border-color: var(--border2); color: var(--muted); }
+  .submit-btn svg { width: 18px; height: 18px; position: relative; }
+  .submit-btn svg path { stroke: currentColor; stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .submit-btn span { position: relative; }
+  .submit-btn.loading { opacity: 0.7; cursor: wait; }
+
+  /* Spinner */
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Results */
+  .result-block {
+    display: none;
+    animation: fadeUp 0.4s ease forwards;
+  }
+  .result-block.visible { display: block; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-text {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.8;
+    color: #cccccc;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .audio-wrap { margin-top: 0.5rem; }
+  audio {
+    width: 100%;
+    border-radius: 8px;
+    outline: none;
+    filter: invert(1) hue-rotate(160deg) brightness(0.85);
+  }
+
+  .api-hint {
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 1.25rem;
+    opacity: 0.6;
+  }
+
+  .api-hint code {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    color: var(--accent);
+  }
+
+  .badge-ready {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    background: #0a1f15;
+    border: 1px solid #1a3a28;
+    border-radius: 20px;
+    padding: 3px 10px;
+    margin-top: 1rem;
+  }
+  .badge-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: blink 1.5s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+</style>
+</head>
+<body>
+<div class="noise"></div>
+<div class="container">
+
+  <header>
+    <div class="logo-row">
+      <div class="logo-dot"></div>
+      <h1>Meeting Summarizer</h1>
+    </div>
+    <div class="tagline">// transcribe → summarize → clone voice</div>
+  </header>
+
+  <!-- Record section -->
+  <div class="section">
+    <div class="section-label">01 — audio input</div>
+
+    <div class="record-center">
+      <div class="record-ring">
+        <svg viewBox="0 0 100 100"><circle/><circle class="progress" id="progressCircle"/></svg>
+        <button class="record-btn" id="recordBtn" aria-label="Start recording">
+          <svg class="mic-icon" viewBox="0 0 24 24" style="animation:none;transform:none;">
+            <rect x="9" y="2" width="6" height="11" rx="3"/>
+            <path d="M5 10a7 7 0 0 0 14 0"/>
+            <line x1="12" y1="19" x2="12" y2="22"/>
+            <line x1="8" y1="22" x2="16" y2="22"/>
+          </svg>
+          <svg class="stop-icon" viewBox="0 0 24 24" style="animation:none;transform:none;">
+            <rect x="6" y="6" width="12" height="12" rx="2" fill="#ff4455" stroke="none"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="record-meta">
+        <div class="record-status" id="recordStatus">tap to record</div>
+        <div class="record-timer" id="recordTimer">00:00</div>
+      </div>
+
+      <div class="waveform" id="waveform">
+        <div class="wave-bar" style="height:6px"></div>
+        <div class="wave-bar" style="height:6px"></div>
+        <div class="wave-bar" style="height:6px"></div>
+        <div class="wave-bar" style="height:6px"></div>
+        <div class="wave-bar" style="height:6px"></div>
+        <div class="wave-bar" style="height:6px"></div>
+        <div class="wave-bar" style="height:6px"></div>
+      </div>
+    </div>
+
+    <div class="or-divider"><span>or upload</span></div>
+
+    <div class="upload-row">
+      <label class="upload-label" for="fileInput">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8" style="stroke-linecap:round;stroke-linejoin:round"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        choose file
+      </label>
+      <input type="file" id="fileInput" accept=".wav,.m4a,.mp3,.ogg,.webm">
+      <span class="file-name" id="fileName">no file chosen</span>
+    </div>
+  </div>
+
+  <!-- Options -->
+  <div class="section">
+    <div class="section-label">02 — options</div>
+    <div class="toggle-row">
+      <div class="toggle-info">
+        <h3>Clone my voice</h3>
+        <p>speaks summary back in your voice using XTTS</p>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="ttsToggle" checked>
+        <span class="toggle-track"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Submit -->
+  <button class="submit-btn" id="submitBtn" disabled>
+    <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 8v4l3 3"/><path d="M18 2v4h4"/></svg>
+    <span>Summarize meeting</span>
+  </button>
+
+  <!-- Results -->
+  <div class="result-block" id="transcriptBlock">
+    <div class="section" style="margin-top:1rem;">
+      <div class="section-label">03 — transcript</div>
+      <div class="result-text" id="transcriptText"></div>
+    </div>
+  </div>
+
+  <div class="result-block" id="summaryBlock">
+    <div class="section">
+      <div class="section-label">04 — summary</div>
+      <div class="result-text" id="summaryText"></div>
+    </div>
+  </div>
+
+  <div class="result-block" id="audioBlock">
+    <div class="section">
+      <div class="section-label">05 — cloned voice audio</div>
+      <div class="audio-wrap">
+        <audio id="audioPlayer" controls></audio>
+      </div>
+      <div class="badge-ready"><div class="badge-dot"></div> ready to play</div>
+    </div>
+  </div>
+
+  <div class="api-hint">api running at <code>localhost:8000</code></div>
+
+</div>
+
+<script>
+  let mediaRecorder, audioChunks = [], recordInterval, elapsed = 0;
+  let audioBlob = null, uploadedFile = null;
+
+  const recordBtn = document.getElementById('recordBtn');
+  const recordStatus = document.getElementById('recordStatus');
+  const recordTimer = document.getElementById('recordTimer');
+  const waveform = document.getElementById('waveform');
+  const fileInput = document.getElementById('fileInput');
+  const fileName = document.getElementById('fileName');
+  const submitBtn = document.getElementById('submitBtn');
+  const ttsToggle = document.getElementById('ttsToggle');
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function fmt(s) { return pad(Math.floor(s/60)) + ':' + pad(s%60); }
+  function enableSubmit() { submitBtn.disabled = false; }
+
+  recordBtn.addEventListener('click', async () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      clearInterval(recordInterval);
+      recordBtn.classList.remove('recording');
+      recordStatus.textContent = 'recording saved';
+      recordStatus.classList.remove('live');
+      waveform.classList.remove('active');
+      document.getElementById('progressCircle').style.strokeDashoffset = 289;
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        uploadedFile = null;
+        fileName.textContent = 'no file chosen';
+        fileName.classList.remove('chosen');
+        stream.getTracks().forEach(t => t.stop());
+        enableSubmit();
+      };
+      mediaRecorder.start();
+      elapsed = 0;
+      recordTimer.textContent = '00:00';
+      recordTimer.classList.add('visible');
+      waveform.classList.add('active');
+      recordBtn.classList.add('recording');
+      recordStatus.textContent = 'recording... tap to stop';
+      recordStatus.classList.add('live');
+      recordInterval = setInterval(() => {
+        elapsed++;
+        recordTimer.textContent = fmt(elapsed);
+        const offset = 289 - (289 * Math.min(elapsed, 120) / 120);
+        document.getElementById('progressCircle').style.strokeDashoffset = offset;
+      }, 1000);
+    } catch(e) {
+      recordStatus.textContent = 'mic access denied';
+    }
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) {
+      uploadedFile = fileInput.files[0];
+      audioBlob = null;
+      fileName.textContent = uploadedFile.name;
+      fileName.classList.add('chosen');
+      enableSubmit();
+    }
+  });
+
+  submitBtn.addEventListener('click', async () => {
+    const file = uploadedFile || (audioBlob ? new File([audioBlob], 'recording.wav', { type: 'audio/wav' }) : null);
+    if (!file) return;
+
+    submitBtn.disabled = true;
+    submitBtn.classList.add('loading');
+    submitBtn.innerHTML = '<div class="spinner"></div><span>processing...</span>';
+
+    ['transcriptBlock','summaryBlock','audioBlock'].forEach(id => {
+      document.getElementById(id).classList.remove('visible');
+    });
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const tts = ttsToggle.checked;
+
+      const res = await fetch(`http://localhost:8000/summarize?tts=${tts}`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) throw new Error('API error ' + res.status);
+      const data = await res.json();
+
+      document.getElementById('transcriptText').textContent = data.transcript;
+      document.getElementById('transcriptBlock').classList.add('visible');
+
+      document.getElementById('summaryText').textContent = data.summary;
+      document.getElementById('summaryBlock').classList.add('visible');
+
+      if (data.audio_url) {
+        const player = document.getElementById('audioPlayer');
+        player.src = 'http://localhost:8000' + data.audio_url + '?t=' + Date.now();
+        document.getElementById('audioBlock').classList.add('visible');
+      }
+
+    } catch(e) {
+      alert('Error: ' + e.message + '\n\nMake sure API is running:\nuvicorn api:app --reload');
+    }
+
+    submitBtn.disabled = false;
+    submitBtn.classList.remove('loading');
+    submitBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 8v4l3 3"/><path d="M18 2v4h4"/></svg><span>Summarize meeting</span>`;
+  });
+</script>
+</body>
+</html>

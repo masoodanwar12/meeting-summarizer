@@ -18,11 +18,17 @@
 
 ```
 meeting/
-├── index.html        # Frontend UI (open in browser)
 ├── api.py            # FastAPI backend
 ├── transcriber.py    # Whisper transcription
 ├── summarizer.py     # Groq summarization
 ├── tts.py            # XTTS voice cloning
+├── main.py           # Entry point
+├── recorder.py       # Audio recording helper
+├── requirements.txt  # Python dependencies
+├── .env              # API keys (not committed)
+├── templates/
+│   └── index.html    # Frontend UI
+├── static/           # Static assets
 └── README.md
 ```
 
@@ -44,6 +50,14 @@ Also install **ffmpeg** on your system:
 
 ### 2. Set your Groq API key
 
+Create a `.env` file in the project root:
+
+```
+GROQ_API_KEY=your_key_here
+```
+
+Or set it manually:
+
 ```bash
 # Windows
 set GROQ_API_KEY=your_key_here
@@ -60,11 +74,15 @@ Get a free key at [console.groq.com](https://console.groq.com)
 uvicorn api:app --reload
 ```
 
-Server runs at `http://localhost:8000`
+Server runs at `http://127.0.0.1:8000`
 
 ### 4. Open the frontend
 
-Open `index.html` in your browser (double-click it in File Explorer).
+Open your browser and go to:
+
+```
+http://127.0.0.1:8000
+```
 
 ---
 
@@ -92,7 +110,8 @@ Playback in browser
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/` | Health check |
+| `GET` | `/` | Serves frontend UI |
+| `GET` | `/health` | Health check |
 | `POST` | `/summarize?tts=true` | Upload audio, get transcript + summary + audio |
 | `GET` | `/download/{filename}` | Download generated audio |
 
